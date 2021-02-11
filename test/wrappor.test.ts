@@ -1,38 +1,40 @@
-import { bigEndianOf, buildBloom, signal } from '../src';
+import { bigEndianOf, buildBloom, getPRRMasks, signal } from '../src';
 
-describe('Big Endian function', () => {
+describe('Big Endian', () => {
   it('returns correct representation', () => {
-    let testValue = 0,
+    let testValue = 1,
     numBytes = 4,
-    expectedVal = "\x00\x00\x00\x00"
+    expectedVal = "\x00\x00\x00\x01"
 
     expect(bigEndianOf(testValue, numBytes)).toEqual(expectedVal)
   })
 })
 
 describe('Signal Step', () => {
-  it('signal the correct bloom bits to set', () => {
+  it('identifies correct bloom bits to set', () => {
     let cohort = 0,
     hashes = 2,
-    word = "abc",
+    word = 'abc',
     bloomSize = 16,
     expected = [6, 13]
 
     expect(signal(word, cohort, hashes, bloomSize)).toEqual(expected)
   })
 
-  it('bloom bits applied to bloom filter', () => {
+  it('applies bloom bits to the bloom filter', () => {
     let bits = [6, 13]
     let expected = 8256
     expect(buildBloom(bits)).toEqual(expected)
   })
+})
 
-  // it('correct B created', () => {
-  //   let cohort = 0,
-  //   hashes = 2,
-  //   word = "abc",
-  //   bloomSize = 16,
-  //   expected = "8256"    
-  //   expect(getBloom(word, cohort, hashes, bloomSize)).toEqual(expected)
-  // })
+describe('PRR Step', () => {
+  it('calculates uniform and fmask correctly', () => {
+    let bloom = 'v3'
+    let secret = 'secret'
+    let f = 0.5
+    let numBits = 8
+    let expected = [150, 202]
+    expect(getPRRMasks(bloom, secret, f, numBits)).toEqual(expected)
+  })
 })
