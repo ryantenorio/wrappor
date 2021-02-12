@@ -1,6 +1,11 @@
 import { HmacSHA256 } from "crypto-js";
 import md5 from "md5"
 
+export interface RRandom {
+  generatePMask(p: number, s: number): number
+  generateQMask(q: number, s: number): number
+}
+
 export const bigEndianOf = (val: number, bytes: number) => {
   // tried with a dataview, ended up using this solution for now: https://github.com/willscott/rappor/blob/master/rappor.js#L144
   let result = "";
@@ -71,7 +76,29 @@ export const getPRRMasks = (word: string, secret: string, f: number, numBits: nu
   return [uniform, fMask]
 }
 
-export const doPRR = () => {
+export const doPRR = (word: string, secret: string, cohort: number, hashes: number, f: number, numBits: number) => {
+  // index 0 is uniform, 1 is fmask
+  // 16 bloombits, 2 hashes, 54 cohorts
+  let bloom = doSignalStep(word, cohort, hashes, numBits)
+  let masks = getPRRMasks(bigEndianOf(bloom, 4), secret, f, numBits)  
   let prr = 0
+
+  prr = (bloom & ~masks[1]) | (masks[0] & masks[1])
+
   return prr
+}
+
+export const doIRR = (prr: number, randProvider: RRandom, p: number, q: number, s: number) => {
+  let irr = 0
+  let pBits = randProvider.generatePMask(p, s)
+  let qBits = randProvider.generateQMask(q, s)
+  irr = (pBits & ~prr) | (qBits & prr)
+  return irr
+}
+
+export const encode = (word: string, secret: string, cohort: number, hashes: number, bits: number, f: number, p: number, q: number, randProvider: RRandom) => {
+  let irr = 0
+  let prr = doPRR(word, secret, cohort, hashes, f, bits)
+  irr = doIRR(prr, randProvider, p, q, bits)
+  return irr
 }
