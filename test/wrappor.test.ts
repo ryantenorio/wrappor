@@ -39,12 +39,12 @@ describe('PRR Step', () => {
   })
 
   it('generates the PRR correctly', () => {
-    let bloom = 'abc'
+    let bloom = 8256 // the string abc
     let secret = 'secret'
     let f = 0.5
     let numBits = 16
     let expected = 57576
-    expect(doPRR(bloom, secret, 0, 2, f, numBits)).toEqual(expected)
+    expect(doPRR(bloom, secret, f, numBits)).toEqual(expected)
   })
 })
 

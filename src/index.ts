@@ -6,8 +6,59 @@ export interface RRandom {
   generateQMask(q: number, s: number): number
 }
 
+export interface EncoderConfig {
+  bloomBits: number
+  hashes: number
+  totalCohorts: number
+  pProb: number
+  qProb: number
+  fProb: number  
+}
+
+interface Encoder {
+  config: EncoderConfig
+  clientCohort: number
+  clientSecret: string
+  randGenerator: RRandom
+}
+
+type RapporMode = 'STANDARD' | 'ONE-TIME' | 'BASIC' | 'BASIC ONE-TIME'
+
+export class WrapporEncoder implements Encoder {
+  config: EncoderConfig;
+  clientCohort: number;
+  clientSecret: string;
+  randGenerator: RRandom;
+  rapporMode: RapporMode
+
+  constructor(config: EncoderConfig, clientCohort: number, clientSecret: string, randGenerator: RRandom, mode: RapporMode) {
+    this.config = config
+    this.clientCohort = clientCohort
+    this.clientSecret = clientSecret
+    this.randGenerator = randGenerator
+    this.rapporMode = mode
+  }
+
+  signal = (v: string, cohort: number, numHashes: number, bloomSize: number) => {
+    // encode the value with the cohort the same way Google does it for rappor.py 
+    let value = bigEndianOf(cohort, 4) + v
+  
+    // hashing
+    let hash = md5(value, {"asString": true})
+    
+    let bloomBits: number[]
+    bloomBits = []
+    // rappor.py uses xrange which is still 0-indexed. TIL!
+    for(let i = 0; i < numHashes; i++) {
+      bloomBits.push(hash.charCodeAt(i) % bloomSize)
+    }
+  
+    return bloomBits
+  }
+}
+
 export const bigEndianOf = (val: number, bytes: number) => {
-  // tried with a dataview, ended up using this solution for now: https://github.com/willscott/rappor/blob/master/rappor.js#L144
+  // tried with a dataview, ended up using this solution: https://github.com/willscott/rappor/blob/master/rappor.js#L144
   let result = "";
   for (let i = (bytes - 1) * 8; i >= 0; i -= 8) {
     let currByte = (val & (0xFF << i)) >> i
@@ -19,8 +70,7 @@ export const bigEndianOf = (val: number, bytes: number) => {
 // hash client's value v onto bloom filter B of size k using h hash functions
 // returns the list of bits to activate in B
 export const signal = (v: string, cohort: number, numHashes: number, bloomSize: number) => {
-  // encode the value with the cohort  
-  // currently uses same method as Google to benefit from their analysis tools  
+  // encode the value with the cohort the same way Google does it for rappor.py 
   let value = bigEndianOf(cohort, 4) + v
 
   // hashing
@@ -28,7 +78,7 @@ export const signal = (v: string, cohort: number, numHashes: number, bloomSize: 
   
   let bloomBits: number[]
   bloomBits = []
-  // original RAPPOR uses xrange which is still 0-indexed
+  // rappor.py uses xrange which is still 0-indexed. TIL!
   for(let i = 0; i < numHashes; i++) {
     bloomBits.push(hash.charCodeAt(i) % bloomSize)
   }
@@ -44,7 +94,7 @@ export const buildBloom = (bitsToActivate: number[]) => {
   return bloom
 }
 
-export const doSignalStep = (v: string, cohort: number, numHashes: number, bloomSize: number) => {
+export const doSignal = (v: string, cohort: number, numHashes: number, bloomSize: number) => {
   let bloomBits = signal(v, cohort, numHashes, bloomSize)
   let bloom = buildBloom(bloomBits)
   return bloom
@@ -57,7 +107,7 @@ export const getPRRMasks = (word: string, secret: string, f: number, numBits: nu
   let uniform = 0
   let fMask = 0
 
-  // hex string to byte array from crypto-js
+  // hex string to byte array from crypto-js: https://stackoverflow.com/a/34356351
   let hashBytes = []
   for(let c = 0; c < hash.length; c += 2) {
     hashBytes.push(parseInt(hash.substr(c, 2), 16))
@@ -76,11 +126,11 @@ export const getPRRMasks = (word: string, secret: string, f: number, numBits: nu
   return [uniform, fMask]
 }
 
-export const doPRR = (word: string, secret: string, cohort: number, hashes: number, f: number, numBits: number) => {
+export const doPRR = (bloom: number, secret: string, f: number, bits: number) => {
   // index 0 is uniform, 1 is fmask
   // 16 bloombits, 2 hashes, 54 cohorts
-  let bloom = doSignalStep(word, cohort, hashes, numBits)
-  let masks = getPRRMasks(bigEndianOf(bloom, 4), secret, f, numBits)  
+  
+  let masks = getPRRMasks(bigEndianOf(bloom, 4), secret, f, bits)  
   let prr = 0
 
   prr = (bloom & ~masks[1]) | (masks[0] & masks[1])
@@ -98,7 +148,8 @@ export const doIRR = (prr: number, randProvider: RRandom, p: number, q: number, 
 
 export const encode = (word: string, secret: string, cohort: number, hashes: number, bits: number, f: number, p: number, q: number, randProvider: RRandom) => {
   let irr = 0
-  let prr = doPRR(word, secret, cohort, hashes, f, bits)
+  let bloom = doSignal(word, cohort, hashes, bits)
+  let prr = doPRR(bloom, secret, f, bits)
   irr = doIRR(prr, randProvider, p, q, bits)
   return irr
 }
