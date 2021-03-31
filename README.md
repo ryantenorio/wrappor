@@ -2,15 +2,6 @@
 
 Wrappor is a school project focused on implementing [RAPPOR](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/42852.pdf) in a JavaScript client to provide local differential privacy capabilities for web applications and mobile applications that support JavaScript (React Native, Ionic). To complement the client, a deployable toolkit will also be built to run a multi-client demo and to conduct statistical analysis on the data produced to gain insight on the impact of the privacy parameters to the utility of the dataset. 
 
-## Roadmap
-
-- TypeScript library development
-- API Documentation
-- "Eject" from TSDX
-- Module published
-- Data analysis tools
-- Multi-Client Test Demo
-
 # TSDX User Guide
 
 Congrats! You just saved yourself hours of work by bootstrapping this project with TSDX. Let’s get you oriented with what’s here and how to use it.
