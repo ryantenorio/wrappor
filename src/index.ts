@@ -34,21 +34,17 @@ export const bigEndianOf = (val: number, bytes: number) => {
   return result;
 };
 
-// @ts-ignore
 export const bitString = (val: number, num: number) => {
-  // let n = val.toString(2);
-  // let res = '00000000000000000000000000000000'.substr(n.length) + n;
-  // return res;
-  let bits = []
+  let bits = [];
   for (let i = 0; i < num; i++) {
     if (val & (1 << i)) {
-      bits.push('1')
+      bits.push('1');
     } else {
-      bits.push('0')
+      bits.push('0');
     }
   }
   return bits.reverse().join('');
-}
+};
 
 export class StandardRRandom implements RRandom {
   generatePMask(p: number, s: number): number {
@@ -61,13 +57,11 @@ export class StandardRRandom implements RRandom {
     let r = 0;
     for (let i = 0; i < s; i++) {
       let rand = Math.random();
-      // let val = rand < probability ? 1 : 0;
-      let val = rand < probability
+      let val = rand < probability;
       r |= Number(val) << i;
     }
     return r;
   }
-
 }
 
 export class Wrappor implements Encoder {
