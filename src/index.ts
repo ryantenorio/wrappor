@@ -34,6 +34,42 @@ export const bigEndianOf = (val: number, bytes: number) => {
   return result;
 };
 
+// @ts-ignore
+export const bitString = (val: number, num: number) => {
+  // let n = val.toString(2);
+  // let res = '00000000000000000000000000000000'.substr(n.length) + n;
+  // return res;
+  let bits = []
+  for (let i = 0; i < num; i++) {
+    if (val & (1 << i)) {
+      bits.push('1')
+    } else {
+      bits.push('0')
+    }
+  }
+  return bits.reverse().join('');
+}
+
+export class StandardRRandom implements RRandom {
+  generatePMask(p: number, s: number): number {
+    return this.generateMask(p, s);
+  }
+  generateQMask(q: number, s: number): number {
+    return this.generateMask(q, s);
+  }
+  generateMask(probability: number, s: number): number {
+    let r = 0;
+    for (let i = 0; i < s; i++) {
+      let rand = Math.random();
+      // let val = rand < probability ? 1 : 0;
+      let val = rand < probability
+      r |= Number(val) << i;
+    }
+    return r;
+  }
+
+}
+
 export class Wrappor implements Encoder {
   config: EncoderConfig;
   clientCohort: number;
@@ -69,7 +105,7 @@ export class Wrappor implements Encoder {
 
     let bloomBits: number[];
     bloomBits = [];
-    // rappor.py uses xrange which is still 0-indexed. TIL!
+    // rappor.py uses xrange which is still 0-indexed
     for (let i = 0; i < numHashes; i++) {
       bloomBits.push(hash.charCodeAt(i) % bloomSize);
     }
