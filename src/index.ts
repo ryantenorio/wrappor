@@ -14,7 +14,6 @@ export interface RRandom {
 /**
  * Interface implemented for memoization of PRR values
  * @public
- * 
  * @remarks
  * Users should pass in their own implementation of the PRRCache in production settings
  * to satisfy their requirements for retaining PRR values for long periods of time
@@ -92,8 +91,8 @@ export class StandardRRandom implements RRandom {
   generateMask(probability: number, s: number): number {
     let r = 0;
     for (let i = 0; i < s; i++) {
-      let rand = randomInt(0, 10000)
-      let val = rand < (probability * 10000);
+      let rand = randomInt(0, 10000);
+      let val = rand < probability * 10000;
       r |= Number(val) << i;
     }
     return r;
@@ -113,11 +112,11 @@ export class IMMCache implements PRRCache {
   }
 
   get(word: string): number {
-    let prr = this.generatedPRRs.get(word)
+    let prr = this.generatedPRRs.get(word);
     if (prr === undefined) {
-      return 0
+      return 0;
     } else {
-      return prr
+      return prr;
     }
   }
 
@@ -139,15 +138,14 @@ export class Wrappor implements Encoder {
   basicSignaller: BasicSignaller | undefined;
 
   /**
-   * 
-   * @param config 
-   * @param clientCohort 
-   * @param clientSecret 
-   * @param randGenerator 
-   * @param mode 
-   * @param prrCache 
-   * @param basicSignaller 
-   * 
+   * Constructor for RAPPOR encoder.
+   * @param config
+   * @param clientCohort
+   * @param clientSecret
+   * @param randGenerator
+   * @param mode
+   * @param prrCache
+   * @param basicSignaller
    * @throws TypeError if Basic or Basic One Time mode needed and basicSignaller is undefined
    */
   constructor(
@@ -155,7 +153,7 @@ export class Wrappor implements Encoder {
     clientCohort: number,
     clientSecret: string,
     mode: RapporMode,
-    randGenerator?: RRandom,    
+    randGenerator?: RRandom,
     prrCache?: PRRCache,
     basicSignaller?: BasicSignaller
   ) {
@@ -172,11 +170,13 @@ export class Wrappor implements Encoder {
       this.prrCache = new IMMCache();
     } else {
       this.prrCache = prrCache;
-    }    
-    if ( basicSignaller === undefined) {
-      if (this.rapporMode == 'BASIC' || this.rapporMode == 'BASIC ONE-TIME') {
-        throw TypeError("BASIC mode requires a valid BasicSignaller implementation");
-      }      
+    }
+    if (basicSignaller === undefined) {
+      if (this.rapporMode === 'BASIC' || this.rapporMode === 'BASIC ONE-TIME') {
+        throw TypeError(
+          'BASIC mode requires a valid BasicSignaller implementation'
+        );
+      }
     } else {
       this.basicSignaller = basicSignaller;
     }
@@ -281,26 +281,24 @@ export class Wrappor implements Encoder {
   };
 
   /**
-   * Retrieves encoded value for a given word. 
-   * 
+   * Retrieves encoded value for a given word.
    * Uses memoized PRR if value has been encoded before, otherwise stores PRR for future use
    * @param word the value to be encoded
    * @returns PRR if basic or basic-one-time mode, IRR otherwise
-   * 
    * @throws TypeError if basic or basic-one-time mode is set and no BasicSignaller was provided
    */
   encode = (word: string) => {
-    let irr = 0;    
+    let irr = 0;
     let prr = this.prrCache.get(word);
-    if (prr == 0) {
+    if (prr === 0) {
       let bloom = 0;
-      if (this.rapporMode == 'BASIC' || this.rapporMode == 'BASIC ONE-TIME') {
+      if (this.rapporMode === 'BASIC' || this.rapporMode === 'BASIC ONE-TIME') {
         if (this.basicSignaller === undefined) {
-          // this shouldn't get thrown ever but we need this check          
-          throw TypeError("BasicSignaller not defined");
+          // this shouldn't get thrown ever but we need this check
+          throw TypeError('BasicSignaller not defined');
         } else {
           bloom = this.basicSignaller.signal(word);
-        }        
+        }
       } else {
         bloom = this.doSignal(
           word,
@@ -308,7 +306,7 @@ export class Wrappor implements Encoder {
           this.config.hashes,
           this.config.bloomBits
         );
-      }      
+      }
       prr = this.doPRR(
         bloom,
         this.clientSecret,
@@ -317,7 +315,10 @@ export class Wrappor implements Encoder {
       );
       this.prrCache.put(word, prr);
     }
-    if (this.rapporMode == 'ONE-TIME' || this.rapporMode == 'BASIC ONE-TIME') {
+    if (
+      this.rapporMode === 'ONE-TIME' ||
+      this.rapporMode === 'BASIC ONE-TIME'
+    ) {
       return prr;
     }
     irr = this.doIRR(
