@@ -1,4 +1,4 @@
-# WRAPPOR (A local differential privacy for JavaScript)
+# WRAPPOR (A local differential privacy client for JavaScript)
 
 WRAPPOR is a project focused on implementing [RAPPOR](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/42852.pdf) in a JavaScript client to provide local differential privacy capabilities for web applications and mobile applications that support JavaScript (React Native, Ionic). See [DEVELOPING](https://github.com/ryantenorio/wrappor/blob/main/DEVELOPING.md) for build and development guidance.
 
