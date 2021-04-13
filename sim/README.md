@@ -1,0 +1,1 @@
+This directory holds code that orchestrates the WRAPPOR library in a way compatible with the decoding and analysis tools in the [RAPPOR repository](https://github.com/google/rappor). Namely, this code writes various values that would typically be kept within the library to a CSV.
