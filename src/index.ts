@@ -1,11 +1,41 @@
 import { HmacSHA256 } from 'crypto-js';
+import { randomInt } from 'crypto';
 import md5 from 'md5';
 
+/**
+ * Interface implemented by PRNG's for use by the encoding algorithm
+ * @public
+ */
 export interface RRandom {
   generatePMask(p: number, s: number): number;
   generateQMask(q: number, s: number): number;
 }
 
+/**
+ * Interface implemented for memoization of PRR values
+ * @public
+ * 
+ * @remarks
+ * Users should pass in their own implementation of the PRRCache in production settings
+ * to satisfy their requirements for retaining PRR values for long periods of time
+ */
+export interface PRRCache {
+  get(word: string): number;
+  put(word: string, prr: number): void;
+}
+
+/**
+ * Interface implemented for the signal step in BASIC or BASIC ONE TIME modes of RAPPOR
+ * @public
+ */
+export interface BasicSignaller {
+  signal(word: string): number;
+}
+
+/**
+ * Interface providing config needed for the RAPPOR encoder
+ * @public
+ */
 export interface EncoderConfig {
   bloomBits: number;
   hashes: number;
@@ -22,6 +52,9 @@ interface Encoder {
   randGenerator: RRandom;
 }
 
+/**
+ * Type describing the RAPPOR modes supported by WRAPPOR
+ */
 export type RapporMode = 'STANDARD' | 'ONE-TIME' | 'BASIC' | 'BASIC ONE-TIME';
 
 export const bigEndianOf = (val: number, bytes: number) => {
@@ -46,6 +79,9 @@ export const bitString = (val: number, num: number) => {
   return bits.reverse().join('');
 };
 
+/**
+ * Represents default PRNG if none provided
+ */
 export class StandardRRandom implements RRandom {
   generatePMask(p: number, s: number): number {
     return this.generateMask(p, s);
@@ -56,33 +92,94 @@ export class StandardRRandom implements RRandom {
   generateMask(probability: number, s: number): number {
     let r = 0;
     for (let i = 0; i < s; i++) {
-      let rand = Math.random();
-      let val = rand < probability;
+      let rand = randomInt(0, 10000)
+      let val = rand < (probability * 10000);
       r |= Number(val) << i;
     }
     return r;
   }
 }
 
+/**
+ * Represents in-memory implementation for memoization of PRR values.
+ * @remarks
+ * Not appropriate for use in production, users should implement their own depending on desired ability to retain PRR values.
+ */
+export class IMMCache implements PRRCache {
+  generatedPRRs: Map<string, number>;
+
+  constructor() {
+    this.generatedPRRs = new Map();
+  }
+
+  get(word: string): number {
+    let prr = this.generatedPRRs.get(word)
+    if (prr === undefined) {
+      return 0
+    } else {
+      return prr
+    }
+  }
+
+  put(word: string, prr: number) {
+    this.generatedPRRs.set(word, prr);
+  }
+}
+
+/**
+ * Represents RAPPOR encoder.
+ */
 export class Wrappor implements Encoder {
   config: EncoderConfig;
   clientCohort: number;
   clientSecret: string;
   randGenerator: RRandom;
   rapporMode: RapporMode;
+  prrCache: PRRCache;
+  basicSignaller: BasicSignaller | undefined;
 
+  /**
+   * 
+   * @param config 
+   * @param clientCohort 
+   * @param clientSecret 
+   * @param randGenerator 
+   * @param mode 
+   * @param prrCache 
+   * @param basicSignaller 
+   * 
+   * @throws TypeError if Basic or Basic One Time mode needed and basicSignaller is undefined
+   */
   constructor(
     config: EncoderConfig,
     clientCohort: number,
     clientSecret: string,
-    randGenerator: RRandom,
-    mode: RapporMode
+    mode: RapporMode,
+    randGenerator?: RRandom,    
+    prrCache?: PRRCache,
+    basicSignaller?: BasicSignaller
   ) {
     this.config = config;
     this.clientCohort = clientCohort;
     this.clientSecret = clientSecret;
-    this.randGenerator = randGenerator;
     this.rapporMode = mode;
+    if (randGenerator === undefined) {
+      this.randGenerator = new StandardRRandom();
+    } else {
+      this.randGenerator = randGenerator;
+    }
+    if (prrCache === undefined) {
+      this.prrCache = new IMMCache();
+    } else {
+      this.prrCache = prrCache;
+    }    
+    if ( basicSignaller === undefined) {
+      if (this.rapporMode == 'BASIC' || this.rapporMode == 'BASIC ONE-TIME') {
+        throw TypeError("BASIC mode requires a valid BasicSignaller implementation");
+      }      
+    } else {
+      this.basicSignaller = basicSignaller;
+    }
   }
 
   private signal = (
@@ -183,20 +280,46 @@ export class Wrappor implements Encoder {
     return irr;
   };
 
+  /**
+   * Retrieves encoded value for a given word. 
+   * 
+   * Uses memoized PRR if value has been encoded before, otherwise stores PRR for future use
+   * @param word the value to be encoded
+   * @returns PRR if basic or basic-one-time mode, IRR otherwise
+   * 
+   * @throws TypeError if basic or basic-one-time mode is set and no BasicSignaller was provided
+   */
   encode = (word: string) => {
-    let irr = 0;
-    let bloom = this.doSignal(
-      word,
-      this.clientCohort,
-      this.config.hashes,
-      this.config.bloomBits
-    );
-    let prr = this.doPRR(
-      bloom,
-      this.clientSecret,
-      this.config.fProb,
-      this.config.bloomBits
-    );
+    let irr = 0;    
+    let prr = this.prrCache.get(word);
+    if (prr == 0) {
+      let bloom = 0;
+      if (this.rapporMode == 'BASIC' || this.rapporMode == 'BASIC ONE-TIME') {
+        if (this.basicSignaller === undefined) {
+          // this shouldn't get thrown ever but we need this check          
+          throw TypeError("BasicSignaller not defined");
+        } else {
+          bloom = this.basicSignaller.signal(word);
+        }        
+      } else {
+        bloom = this.doSignal(
+          word,
+          this.clientCohort,
+          this.config.hashes,
+          this.config.bloomBits
+        );
+      }      
+      prr = this.doPRR(
+        bloom,
+        this.clientSecret,
+        this.config.fProb,
+        this.config.bloomBits
+      );
+      this.prrCache.put(word, prr);
+    }
+    if (this.rapporMode == 'ONE-TIME' || this.rapporMode == 'BASIC ONE-TIME') {
+      return prr;
+    }
     irr = this.doIRR(
       prr,
       this.randGenerator,

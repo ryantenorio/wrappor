@@ -62,8 +62,8 @@ fs.createReadStream(input)
       config,
       cohort,
       secret,
-      randGenerator,
-      mode
+      mode,
+      randGenerator
     )
     // @ts-ignore
     let bloom = e.doSignal(

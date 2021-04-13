@@ -60,8 +60,8 @@ describe('Wrappor', () => {
     config,
     clientCohort,
     clientSecret,
-    randGenerator,
-    mode
+    mode,
+    randGenerator
   );
 
   // this is the test pass that really matters
